@@ -1,14 +1,15 @@
 module.exports = function ProxmoxApi(hostname, user, pve, password){
-	// INIT vars
-    this.hostname = hostname;
-    this.user = user;
-    this.password = pve;
-    this.pve = password;
-    this.token = {};
-    this.tokenTimestamp = 0;
 
-    function login(hostname, user, pve, password, callback)
-	{		
+	// INIT vars
+  this.hostname = hostname;
+  this.user = user;
+  this.password = pve;
+  this.pve = password;
+  this.token = {};
+  this.tokenTimestamp = 0;
+
+  function login(hostname, user, pve, password, callback)
+    {
 		var querystring = require('querystring');
 		body = { password: password, username: user, realm: pve };
 		body = querystring.stringify(body);
@@ -24,19 +25,26 @@ module.exports = function ProxmoxApi(hostname, user, pve, password){
 			method: 'POST',
 			headers: headers
 		};
-		var http = require('https');
-		var par = this;
-		var req = http.request(options, function(res){
+		var https = require('https');
+		var that = this;
+		var req = https.request(options, function(res){
+			var response = "";
 			res.setEncoding('utf8');
-		    res.on('data', function (chunk) {
-		    	//Error handling to do
-		    	var data = JSON.parse(chunk).data;
-		        par.token = {ticket: data.ticket, CSRFPreventionToken: data.CSRFPreventionToken};
-		    	par.tokenTimestamp = new Date().getTime();	
-		    	if(typeof(callback) == 'function')
-		    		callback();
-		    });
+
+	    res.on('data', function (chunk) {
+	    	response += chunk;
+	    });
+	    res.on('end', function(){
+	    	parsedResponse = JSON.parse(response);
+	    	that.token = {ticket: parsedResponse.data.ticket, CSRFPreventionToken: parsedResponse.data.CSRFPreventionToken};
+	    	that.tokenTimestamp = new Date().getTime();
+	    	if(typeof(callback) == 'function')
+	    		callback();
+	    });
 		});
+		req.on('error', function(error){
+			console.log(error);
+		})
 		req.write(body);
 		req.end();
 	}
@@ -57,8 +65,8 @@ module.exports = function ProxmoxApi(hostname, user, pve, password){
 
 	function callApi(method, url, body, callback)
 	{
-		var currentTime = new Date().getTime();	
-		
+		var currentTime = new Date().getTime();
+
 		var querystring = require('querystring');
 
 		//Compute signature
@@ -91,28 +99,29 @@ module.exports = function ProxmoxApi(hostname, user, pve, password){
 			headers: headers
 		};
 
-		var http = require('https');
-
-		var req = http.request(options, function(res){
+		var https = require('https');
+		var req = https.request(options, function(res){
+			var response = '';
 			res.setEncoding('utf8');
-			var data = '';
-		    res.on('data', function (chunk) {
-		        data += chunk;
-		    });
-		    res.on('end', function(){
-				var dataa = JSON.parse(data).data;
-		        if(typeof(callback) == 'function')
-		        	callback(dataa);
+
+	    res.on('data', function (chunk) {
+	      response += chunk;
+	    });
+	    res.on('end', function(){
+				var parsedResponse = JSON.parse(response);
+	      if(typeof(callback) == 'function')
+	      	callback(parsedResponse.data);
 			});
 		});
-
+		req.on('error', function(error){
+			console.log(error);
+		})
 		if(body != '')
 			req.write(querystring.stringify(body));
 		req.end();
-
 	}
 
-return {
+	return {
 		get: function get(url, callback){
 			call('GET', url, '', callback);
 		},
